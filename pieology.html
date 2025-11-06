@@ -1,0 +1,1086 @@
+ <!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pieology — Slice Studio (Realistic Interactive Pizza)</title>
+<meta name="description" content="Pieology — interactive pizza maker with realistic canvas preview, draggable toppings, bake doneness, many themes, save/load/share and ordering." />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-1:#fff7ed;
+    --bg-2:#fff0f5;
+    --card:#fff;
+    --accent:#ff6a3d;
+    --accent2:#ffcf5c;
+    --accent3:#7de2a5;
+    --muted:#5a5a5a;
+    --radius:16px;
+    --space:22px;   /* larger spacing for breathing room */
+    --gap:18px;
+    font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, 'Baloo 2', cursive;
+  }
+
+  :root[data-theme="neon"]{ --bg-1:#070017; --bg-2:#0b1633; --card:#071025; --accent:#ff4ecf; --accent2:#6bffea; --accent3:#ffd66b; --muted:#cbd5ff; }
+  :root[data-theme="pastel"]{ --bg-1:#fffaf6; --bg-2:#f6fff8; --card:#fff; --accent:#ff8aa1; --accent2:#ffd9a6; --accent3:#b9f1d6; --muted:#6b6b6b; }
+  :root[data-theme="sunset"]{ --bg-1:#fff1e6; --bg-2:#ffe6f0; --card:#fff; --accent:#ff6a3d; --accent2:#ffb86b; --accent3:#ff6ea6; --muted:#6a4a3c; }
+  :root[data-theme="ocean"]{ --bg-1:#e9fbff; --bg-2:#f0f9ff; --card:#fff; --accent:#0077be; --accent2:#00c2a8; --accent3:#8de0ff; --muted:#1f4f6b; }
+  :root[data-theme="retro"]{ --bg-1:#faf3e0; --bg-2:#f6efe6; --card:#fff; --accent:#d04c2a; --accent2:#ffd166; --accent3:#6aa84f; --muted:#5a4636; }
+  :root[data-theme="disco"]{ --bg-1:#0b1220; --bg-2:#100a1a; --card:#0f1724; --accent:#f72585; --accent2:#b5179e; --accent3:#7209b7; --muted:#d6d6ff; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html,body { height:100%; }
+  body{
+    background:
+      radial-gradient(800px 320px at 10% 8%, rgba(255,220,200,0.18), transparent 8%),
+      radial-gradient(700px 300px at 90% 90%, rgba(200,240,255,0.16), transparent 8%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    color: #111;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing:antialiased;
+    padding: calc(var(--space) * 0.8);
+  }
+
+  header {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: calc(var(--space) * 0.5);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: var(--gap);
+  }
+  .logo { display:flex; gap:14px; align-items:center; font-weight:900; color:var(--accent); font-size:20px; }
+  .mark {
+    width:60px; height:60px; border-radius:14px;
+    display:grid; place-items:center; font-weight:900; color:#fff;
+    background: conic-gradient(var(--accent) 0 45deg, var(--accent2) 45deg 150deg, var(--accent3) 150deg 300deg, #fff 300deg);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.08);
+    transform: translateY(-4px);
+    animation: float 6s ease-in-out infinite;
+  }
+  @keyframes float {
+    0% { transform: translateY(-4px) rotate(-1deg); }
+    50% { transform: translateY(4px) rotate(1deg); }
+    100% { transform: translateY(-4px) rotate(-1deg); }
+  }
+  nav { display:flex; gap:12px; align-items:center; }
+  nav a { text-decoration:none; color:var(--muted); padding:8px 10px; border-radius:10px; font-weight:700; }
+  nav a:hover { color:var(--accent); transform: translateY(-3px); }
+
+  .container { max-width:1200px; margin: 0 auto; padding: calc(var(--space) * 0.5); display:flex; flex-direction:column; gap: calc(var(--space)); }
+
+  .hero { display:grid; grid-template-columns: 1fr 420px; gap: calc(var(--gap) * 1.2); align-items:start; margin-bottom: calc(var(--space)); }
+  .card { background: var(--card); padding: calc(var(--space)); border-radius: var(--radius); box-shadow: 0 20px 48px rgba(10,10,10,0.06); }
+  h1 { font-family: 'Baloo 2', cursive; font-size: 36px; color: var(--accent); margin-bottom: 8px; letter-spacing: 0.6px; }
+  .lead { color: var(--muted); font-size: 16px; margin-bottom: 12px; }
+
+  .builder { display:grid; grid-template-columns: 1fr 520px; gap: calc(var(--gap) * 1.2); align-items:start; }
+  label { display:block; margin-top: 12px; font-weight:800; color:#333; }
+  select, input[type="text"], input[type="range"], input[type="email"] { width:100%; padding:12px; border-radius:12px; border:1px solid #eee; margin-top:8px; background: linear-gradient(180deg,#fff,#fffef8); }
+  .controls { display:flex; gap:12px; flex-wrap:wrap; margin-top: 14px; align-items:center; }
+
+  /* Studio */
+  .studio { display:flex; flex-direction:column; align-items:center; gap:14px; padding:6px; }
+  canvas#pizzaCanvas { width:100%; max-width:480px; height:auto; border-radius:50%; box-shadow: 0 22px 60px rgba(0,0,0,0.09); background: transparent; }
+  .studio-controls { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:8px; }
+
+  .pill { padding:9px 14px; border-radius:999px; background:var(--accent2); font-weight:800; cursor:pointer; border:none; }
+  .btn { padding:12px 16px; border-radius:12px; background: linear-gradient(90deg,var(--accent), #ff8b5a); color:#fff; border:none; font-weight:900; cursor:pointer; }
+  .small { padding:9px 12px; border-radius:10px; background:#fff; border:1px solid #eee; cursor:pointer; font-weight:800; }
+
+  .muted { color: var(--muted); }
+
+  .suggestions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .suggest-pill { padding:8px 12px; border-radius:10px; background: linear-gradient(90deg,#fff,#fffef8); border:1px solid #eee; cursor:grab; font-weight:700; }
+
+  .preset-card { padding:12px; border-radius:10px; background: linear-gradient(90deg,#fff,#fffef8); box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+
+  .nutrition { margin-top:12px; padding:12px; border-radius:10px; border:1px solid #eee; background: linear-gradient(180deg,#fff,#fffef8); }
+
+  .section-title { font-size:22px; font-weight:900; color:var(--accent); margin-bottom:10px; }
+
+  .spacious { padding: calc(var(--space) * 0.8); margin-bottom: calc(var(--space) * 0.6); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92)); box-shadow: 0 16px 40px rgba(0,0,0,0.05); }
+
+  footer { max-width:1200px; margin: calc(var(--space) * 0.6) auto; padding: calc(var(--space) * 0.6); color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+
+  .badge { display:inline-block; padding:8px 12px; border-radius:999px; background: linear-gradient(90deg,#fff,#fffef8); box-shadow:0 8px 20px rgba(0,0,0,0.04); font-weight:800; color:#333; }
+
+  @media (max-width:1000px) {
+    .hero { grid-template-columns: 1fr; }
+    .builder { grid-template-columns: 1fr; }
+    nav { display:none; }
+    header { padding:12px; }
+  }
+</style>
+</head>
+<body data-theme="">
+
+<header>
+  <div class="logo">
+    <div class="mark" title="Pieology">🍕</div>
+    <div>
+      Pieology
+      <div class="muted" style="font-size:12px;font-weight:700">Where dreams become pizza</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:14px;align-items:center">
+    <nav aria-label="Main navigation">
+      <a href="#builder">Build</a>
+      <a href="#presets">Presets</a>
+      <a href="#about">About</a>
+      <a href="#location">Location</a>
+      <a href="#creators">Creators</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+
+    <select id="themeSelect" aria-label="Theme selector" style="padding:10px;border-radius:10px;border:1px solid #eee">
+      <option value="">Default</option>
+      <option value="neon">Neon</option>
+      <option value="pastel">Pastel</option>
+      <option value="sunset">Sunset</option>
+      <option value="ocean">Ocean</option>
+      <option value="retro">Retro</option>
+      <option value="disco">Disco</option>
+    </select>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="card spacious">
+      <h1>Slice Studio — Realistic Interactive Pizza</h1>
+      <p class="lead">Build adventurous pizzas with an interactive, realistic preview. Drag toppings, bake to your desired doneness, save, share, and try our playful presets or create your own masterpiece.</p>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn" onclick="document.getElementById('toppingInput').focus()">Start building</button>
+        <button class="small" id="randomizeBtn">Randomize (R)</button>
+        <button class="small" id="bakeKeyHint">Bake (B)</button>
+        <div class="badge" aria-hidden="true">✨ 150+ toppings</div>
+        <div class="badge" aria-hidden="true">🎉 Events & Workshops</div>
+      </div>
+
+      <p class="muted" style="margin-top:14px">Prices reduced slightly to encourage experimentation — have fun creating and share your favorites.</p>
+    </div>
+
+    <div class="card spacious" style="display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="font-weight:900;color:var(--accent)">Slice Studio Highlights</div>
+      <div class="muted" style="text-align:center">Doneness, density, nutrition, bake animation, save/load/share, export, and a friendly UI that breathes — everything spaced out for clarity and comfort.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="badge">🍞 Many doughs</div>
+        <div class="badge">🧂 Creative sauces</div>
+        <div class="badge">♻️ Sustainable sourcing</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILDER -->
+  <section id="builder" class="builder">
+    <div class="card spacious">
+      <div style="font-weight:900;font-size:18px">Customize your pie</div>
+
+      <label for="size">Size</label>
+      <select id="size" onchange="updatePrice()">
+        <option value="8">8" — Personal $10.80</option>
+        <option value="10">10" — Small $14.40</option>
+        <option value="12" selected>12" — Medium $19.80</option>
+        <option value="14">14" — Large $25.20</option>
+        <option value="16">16" — Extra Large $30.60</option>
+        <option value="18">18" — Family $36.00</option>
+        <option value="20">20" — Party $43.20</option>
+        <option value="24">24" — Mega $54.00</option>
+      </select>
+
+      <label for="dough">Dough</label>
+      <select id="dough" onchange="updatePrice()">
+        <option>Classic</option><option>Thin Crust</option><option>Sourdough</option><option>Gluten-Free</option><option>Whole Wheat</option><option>Multigrain</option><option>Cookie Dough</option><option>Chocolate</option><option>Cheese-Stuffed</option><option>Cauliflower</option><option>Pretzel</option><option>Marble Swirl</option><option>Herb & Olive Oil</option><option>Garlic-Butter</option>
+      </select>
+
+      <label for="sauce">Sauce</label>
+      <select id="sauce" onchange="updatePrice()">
+        <option>Tomato</option><option>White Garlic</option><option>Pesto</option><option>BBQ</option><option>Buffalo</option><option>Soy Glaze</option><option>Nutella</option><option>Chocolate</option><option>Caramel</option><option>Alfredo</option><option>Hummus</option><option>Avocado Spread</option><option>Ranch</option><option>Spicy Marinara</option><option>Truffle Oil</option><option>Harissa</option><option>None</option>
+      </select>
+
+      <label for="toppingInput">Toppings — type then click Add (or drag suggestions onto the pizza)</label>
+      <div style="display:flex;gap:10px">
+        <input id="toppingInput" placeholder="e.g., pepperoni, gummy bears" />
+        <button id="addTopping" class="btn">Add</button>
+      </div>
+
+      <div class="toppings-list" id="toppingsList" aria-live="polite" style="margin-top:12px">
+        <div class="muted">No toppings added yet — drop, click or drag to add.</div>
+      </div>
+
+      <div class="controls" style="margin-top:12px;align-items:center">
+        <div>
+          <div class="muted">Estimated price</div>
+          <div id="price" style="font-weight:900;font-size:18px">$19.80</div>
+        </div>
+
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button id="undoBtn" class="small">Undo</button>
+          <button id="clearBtn" class="small">Clear</button>
+          <button id="saveBtn" class="small">Save</button>
+          <button id="manageSaved" class="small">Manage Saved</button>
+          <button id="shareBtn" class="small">Share</button>
+          <button id="orderBtn" class="btn">Order</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div style="font-weight:900">Topping suggestions</div>
+        <div class="suggestions" id="suggestions" aria-hidden="false"></div>
+      </div>
+
+      <div style="margin-top:14px;display:grid;gap:10px">
+        <div>
+          <label for="density">Topping density</label>
+          <input id="density" type="range" min="1" max="10" value="5" />
+        </div>
+
+        <div>
+          <label for="doneness">How cooked? (Doneness)</label>
+          <input id="doneness" type="range" min="0" max="100" value="20" />
+          <div class="muted" style="margin-top:6px">Controls crust browning and topping caramelization — hit Bake or press B.</div>
+        </div>
+
+        <div class="nutrition" id="nutritionPanel" aria-live="polite">
+          <div style="font-weight:900">Nutrition Estimate</div>
+          <div style="margin-top:8px;color:var(--muted);font-size:13px">Calories by topping piece (estimates). Updates as you place or remove pieces.</div>
+          <div id="nutritionList" style="margin-top:10px"></div>
+          <div id="caloriesTotal" style="font-weight:900;margin-top:8px">Total calories: 0 kcal</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Studio -->
+    <aside class="card spacious studio">
+      <div style="font-weight:900">Slice Studio</div>
+      <canvas id="pizzaCanvas" width="480" height="480" aria-label="Realistic pizza preview"></canvas>
+
+      <div class="studio-controls" style="margin-top:10px">
+        <button id="bakeBtn" class="pill">Bake 🔥</button>
+        <button id="snapshotBtn" class="small">Snapshot</button>
+        <button id="exportBtn" class="small">Export PNG</button>
+        <button id="clearPlaced" class="small">Clear Placed</button>
+        <label class="muted">Chime <input type="checkbox" id="soundToggle" checked style="margin-left:8px"></label>
+        <label class="muted">Confetti <input type="checkbox" id="confettiToggle" checked style="margin-left:8px"></label>
+      </div>
+
+      <div class="muted" style="margin-top:12px;text-align:center">Click canvas to add typed topping at a spot, drag suggestion chips onto the pizza, drag placed pieces to reposition, click a placed piece to remove it. Export or save your creation when ready.</div>
+    </aside>
+  </section>
+
+  <!-- ABOUT PIEOLOGY -->
+  <section id="about" class="spacious">
+    <h2 class="section-title">About Pieology</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div>
+        <h3 style="margin-bottom:8px">Our Story</h3>
+        <p class="muted">Pieology started as a small experimental kitchen that believed pizza could be joyful, customizable, and wildly creative. We mix chef-led technique with a playful, open-kitchen experience. Over time, our pop-up nights and dessert-pizza experiments grew into the full Slice Studio you see today.</p>
+
+        <h3 style="margin-top:12px">Mission & Values</h3>
+        <ul class="muted" style="margin-top:8px;line-height:1.6">
+          <li><strong>Fun-first:</strong> We design experiences that delight families and food explorers.</li>
+          <li><strong>Quality:</strong> Carefully-sourced ingredients and tested techniques make even daring pizzas taste great.</li>
+          <li><strong>Community:</strong> We run themed nights, charity fundraisers, and local collaborations.</li>
+          <li><strong>Sustainability:</strong> Seasonal produce, responsibly-sourced meats, and compostable packaging.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h3 style="margin-bottom:8px">Where We Source & How We Operate</h3>
+        <p class="muted">We partner with local farms for vegetables and with trusted cheese and flour suppliers. Dough recipes (from classic to marble-swirl) are developed in-house to balance texture and oven performance. Our kitchen is open so guests can watch dough building, tossing, and finishing — the show is part of the meal.</p>
+
+        <h3 style="margin-top:12px">What You Can Do Here</h3>
+        <ol class="muted" style="margin-top:8px;line-height:1.6">
+          <li>Create experimental pizzas with bold toppings or dessert mashups in the Slice Studio.</li>
+          <li>Book a masterclass on dough and baking technique.</li>
+          <li>Host a private party and design a group menu together.</li>
+          <li>Attend tasting flights to explore flavor pairings curated by our chefs.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <h3 style="margin-bottom:8px">Accessibility & Community</h3>
+      <p class="muted">We strive for an accessible space with clear labeling, allergy-aware staff, and flexible menu options. We participate in local markets and donate weekly to community food programs. Contact us to arrange accessible seating or menu adaptations.</p>
+    </div>
+  </section>
+
+  <!-- PRESETS & ACTIVITIES -->
+  <section id="presets" class="spacious">
+    <h2 class="section-title">Preset Menu & Activities</h2>
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:18px">
+      <div>
+        <div id="presetGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px"></div>
+      </div>
+      <div>
+        <div style="font-weight:900">Events & Experiences</div>
+        <div class="muted" style="margin-top:10px;line-height:1.6">
+          Pieology hosts pizza parties, team-building workshops, tasting menus, late-night neon events, and kids' design labs. Use the Order button to request a booking (simulated here) or email hello@pieology.example for group inquiries.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CREATORS -->
+  <section id="creators" class="spacious">
+    <h2 class="section-title">Creators & Team</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+      <div class="card">
+        <div style="font-weight:900">Daniel Berookhim</div>
+        <p class="muted" style="margin-top:8px">Co-creator and concept visionary who curates seasonal menus, leads creative nights, and designs tasting flights. Daniel brings theater and playful design to the pizza experience.</p>
+        <div class="muted" style="margin-top:10px"><strong>Role:</strong> Head of Concepts & Events • <strong>Contact:</strong> daniel@pieology.example</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900">Max Hendelman</div>
+        <p class="muted" style="margin-top:8px">Co-creator and head pizza engineer; Max develops doughs, leads masterclasses, and ensures the kitchen runs like a performance. He created our marble-swirl and cookie-dough bases.</p>
+        <div class="muted" style="margin-top:10px"><strong>Role:</strong> Head of Kitchen & Baking • <strong>Contact:</strong> max@pieology.example</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ, Careers, Press -->
+  <section id="faq" class="spacious">
+    <h2 class="section-title">FAQ & Careers</h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div class="card">
+        <div style="font-weight:900">Frequently Asked Questions</div>
+        <div class="muted" style="margin-top:10px;line-height:1.6">
+          <p><strong>Q:</strong> Can I book events? <strong>A:</strong> Yes — use Order + "Booking" or email hello@pieology.example.</p>
+          <p><strong>Q:</strong> Are there vegan options? <strong>A:</strong> Yes, we offer dairy-free cheeses and many plant-based toppings.</p>
+          <p><strong>Q:</strong> How do saves work? <strong>A:</strong> Save stores builds locally in your browser; Share creates a URL that reconstructs the build anywhere.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900">Careers & Press</div>
+        <div class="muted" style="margin-top:10px;line-height:1.6">
+          We're hiring pizza artists, hosts, and event coordinators. Email careers@pieology.example. For press assets, click "Download Snapshot for Press" (exports the current canvas).
+          <div style="margin-top:10px">
+            <button id="applyJob" class="small">Apply (email)</button>
+            <button id="pressExport" class="small">Download Snapshot for Press</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOCATION -->
+  <section id="location" class="spacious">
+    <h2 class="section-title">Location & Hours</h2>
+    <div class="card">
+      <strong>Parallel to Disneyland entrance, Anaheim, CA</strong>
+      <div class="muted" style="margin-top:8px">Open Daily: 11:00 AM — 10:00 PM</div>
+      <div style="margin-top:12px;border-radius:12px;overflow:hidden">
+        <iframe title="Pieology location map" width="100%" height="320" style="border:0" loading="lazy" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3303.722360488037!2d-117.91899758478657!3d33.81287268075337!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80dd2c5f261f0e1f%3A0x1f0f243c3a1dc0f2!2sDisneyland%20Park!5e0!3m2!1sen!2sus!4v1699012823456!5m2!1sen!2sus"></iframe>
+      </div>
+      <p class="muted" style="margin-top:12px">Walk-ins welcome — contact hello@pieology.example to arrange private bookings, catering, or workshops.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div>© <span id="year"></span> Pieology — Where Dreams Become Pizza</div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="muted">Contact: hello@pieology.example • (555) 123-PIEZ</div>
+    <form id="newsletterForm" style="display:flex;gap:8px;align-items:center">
+      <input id="newsletterEmail" type="email" placeholder="Your email" style="padding:10px;border-radius:10px;border:1px solid #eee" />
+      <button type="submit" class="small">Subscribe</button>
+    </form>
+  </div>
+</footer>
+
+<!-- Saved manager modal -->
+<div id="savedModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="savedTitle">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <h3 id="savedTitle" style="margin:0">Saved Builds</h3>
+      <div style="flex:1"></div>
+      <button id="closeSaved" class="small">Close</button>
+    </div>
+    <div style="margin-top:12px" id="savedList"></div>
+  </div>
+</div>
+
+<script>
+/* Pieology — full interactive script with nutrition estimator and all buttons wired.
+   This is based on the previous working Slice Studio code with spacing and content updates.
+   All controls referenced in the markup are connected here.
+*/
+
+(function(){
+  // DOM refs
+  const yearEl = document.getElementById('year');
+  const canvas = document.getElementById('pizzaCanvas');
+  const ctx = canvas.getContext('2d');
+  const addInput = document.getElementById('toppingInput');
+  const addBtn = document.getElementById('addTopping');
+  const suggestionsEl = document.getElementById('suggestions');
+  const toppingsListEl = document.getElementById('toppingsList');
+  const priceEl = document.getElementById('price');
+  const densityEl = document.getElementById('density');
+  const donenessEl = document.getElementById('doneness');
+  const bakeBtn = document.getElementById('bakeBtn');
+  const snapshotBtn = document.getElementById('snapshotBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const clearPlacedBtn = document.getElementById('clearPlaced');
+  const undoBtn = document.getElementById('undoBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const manageSavedBtn = document.getElementById('manageSaved');
+  const shareBtn = document.getElementById('shareBtn');
+  const orderBtn = document.getElementById('orderBtn');
+  const randomizeBtn = document.getElementById('randomizeBtn');
+  const soundToggle = document.getElementById('soundToggle');
+  const confettiToggle = document.getElementById('confettiToggle');
+  const themeSelect = document.getElementById('themeSelect');
+  const presetGrid = document.getElementById('presetGrid');
+  const savedModal = document.getElementById('savedModal');
+  const savedList = document.getElementById('savedList');
+  const closeSavedBtn = document.getElementById('closeSaved');
+  const snapshotPressBtn = document.getElementById('pressExport');
+  const nutritionList = document.getElementById('nutritionList');
+  const caloriesTotal = document.getElementById('caloriesTotal');
+  const applyJobBtn = document.getElementById('applyJob');
+  const newsletterForm = document.getElementById('newsletterForm');
+  const newsletterEmail = document.getElementById('newsletterEmail');
+
+  yearEl.textContent = new Date().getFullYear();
+
+  // state
+  let toppings = [];
+  let placed = [];
+  let undoStack = [];
+  const DEFAULT_DENSITY = 5;
+
+  // visuals map and nutrition
+  const visuals = {
+    'pepperoni': {color:'#c43b3b', size:22, shape:'circle'},
+    'mozzarella': {color:'#ffd57a', size:18, shape:'shred'},
+    'basil': {color:'#2d8a4f', size:12, shape:'leaf'},
+    'mushroom': {color:'#d1c0a8', size:16, shape:'cap'},
+    'pineapple': {color:'#ffd24a', size:14, shape:'cube'},
+    'gummy bears': {color:'#ff6ea6', size:14, shape:'cube'},
+    'marshmallows': {color:'#ffffff', size:12, shape:'cube'},
+    'banana': {color:'#ffeb7a', size:18, shape:'slice'},
+    'nutella': {color:'#603913', size:22, shape:'smear'},
+    'chocolate': {color:'#4b2e2b', size:20, shape:'chip'},
+    'olives': {color:'#222', size:10, shape:'slice'},
+    'cheese': {color:'#ffd57a', size:20, shape:'shred'},
+    'jalapeño': {color:'#4caf50', size:12, shape:'slice'},
+    'default': {color:'#ff7fb9', size:14, shape:'circle'}
+  };
+
+  const suggested = ['pepperoni','mozzarella','basil','mushroom','pineapple','gummy bears','marshmallows','banana','nutella','chocolate','olives','cheese','jalapeño','arugula','sausage','spinach','roasted peppers','anchovies','sun-dried tomato','prosciutto','sprinkles'];
+  const basePrices = {'8':10.8,'10':14.4,'12':19.8,'14':25.2,'16':30.6,'18':36,'20':43.2,'24':54};
+  const caloriesMap = {'pepperoni':50,'mozzarella':30,'basil':1,'mushroom':6,'pineapple':15,'gummy bears':30,'marshmallows':25,'banana':20,'nutella':80,'chocolate':70,'olives':10,'cheese':40,'jalapeño':2,'arugula':1,'sausage':70,'spinach':5,'roasted peppers':10,'anchovies':12,'sun-dried tomato':12,'prosciutto':60,'sprinkles':8,'default':15};
+
+  const uid = ()=>Math.random().toString(36).slice(2,9);
+  const clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
+  const rect = el=>el.getBoundingClientRect();
+
+  function pushUndo(){
+    undoStack.push({ toppings: JSON.parse(JSON.stringify(toppings)), placed: JSON.parse(JSON.stringify(placed)) });
+    if(undoStack.length>60) undoStack.shift();
+  }
+
+  // populate suggestions UI
+  function populateSuggestions(){
+    suggestionsEl.innerHTML = '';
+    suggested.forEach(s=>{
+      const b = document.createElement('button');
+      b.className = 'suggest-pill';
+      b.textContent = s;
+      b.draggable = true;
+      b.addEventListener('click', ()=> addToppingByName(s));
+      b.addEventListener('dragstart', e=>{
+        e.dataTransfer.setData('text/plain', s);
+        const c = document.createElement('canvas'); c.width=160; c.height=36;
+        const g = c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,160,36); g.fillStyle='#222'; g.font='12px sans-serif'; g.fillText(s,8,22);
+        e.dataTransfer.setDragImage(c,80,18);
+      });
+      suggestionsEl.appendChild(b);
+    });
+  }
+
+  function renderToppingsList(){
+    toppingsListEl.innerHTML = '';
+    if(!toppings.length){ toppingsListEl.innerHTML = '<div class="muted">No toppings added yet — drop, click or drag to add.</div>'; return; }
+    const counts = {};
+    toppings.forEach(t=> counts[t] = (counts[t]||0)+1);
+    Object.keys(counts).forEach(name=>{
+      const p = document.createElement('span');
+      p.className = 'pill';
+      p.textContent = `${name} ×${counts[name]}`;
+      p.title = 'Click to remove all of this topping';
+      p.addEventListener('click', ()=>{
+        pushUndo();
+        toppings = toppings.filter(x=>x!==name);
+        placed = placed.filter(pp=>pp.name !== name);
+        updatePrice(); renderToppingsList(); drawPizza(); updateNutrition();
+      });
+      toppingsListEl.appendChild(p);
+    });
+  }
+
+  function updatePrice(){
+    const size = document.getElementById('size').value;
+    const base = basePrices[size] || 19.8;
+    const dough = document.getElementById('dough').value.toLowerCase();
+    let doughExtra = 0;
+    if(dough.includes('stuffed')||dough.includes('cheese')||dough.includes('cookie')||dough.includes('chocolate')||dough.includes('pretzel')) doughExtra = 3.5;
+    if(dough.includes('gluten')||dough.includes('cauliflower')) doughExtra = 2.5;
+    const sauce = document.getElementById('sauce').value.toLowerCase();
+    const sauceExtra = (sauce==='nutella' || sauce==='truffle oil' || sauce==='chocolate' || sauce==='caramel') ? 1.5 : 0;
+    const toppingCost = Math.max(0, toppings.length - 3) * 1.25;
+    const total = (base + doughExtra + sauceExtra + toppingCost).toFixed(2);
+    priceEl.textContent = `$${total}`;
+  }
+
+  /* Canvas rendering functions */
+  function drawPizza(){
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+
+    const centerX = w/2, centerY = h/2;
+    const radius = Math.min(w,h)/2 - 8;
+    const crustWidth = radius * 0.12;
+    const innerRadius = radius - crustWidth;
+
+    const doneness = parseInt(donenessEl.value || 20, 10);
+    const crustColorLight = mixColors('#f7d9b3','#e3b07a', clamp(doneness/100, 0, 1));
+    const crustColorDark = mixColors('#d49b6b','#7a4b2a', clamp(doneness/150+0.1, 0, 1));
+
+    const gCrust = ctx.createRadialGradient(centerX - radius*0.18, centerY - radius*0.28, crustWidth*0.2, centerX, centerY, radius);
+    gCrust.addColorStop(0, crustColorLight);
+    gCrust.addColorStop(0.6, crustColorDark);
+    gCrust.addColorStop(1, '#8c4a2a');
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI*2);
+    ctx.fillStyle = gCrust;
+    ctx.fill();
+
+    const sauceVal = document.getElementById('sauce').value.toLowerCase();
+    const sauceColor = sauceColorFor(sauceVal);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerRadius, 0, Math.PI*2);
+    ctx.fillStyle = sauceColor;
+    ctx.fill();
+
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = 'rgba(255,238,170,0.9)';
+    for(let i=0;i<110;i++){
+      const a = Math.random()*Math.PI*2;
+      const r = innerRadius * (0.2 + Math.random()*0.75);
+      const x = centerX + Math.cos(a)*r;
+      const y = centerY + Math.sin(a)*r;
+      const size = 4 + Math.random()*18;
+      ctx.beginPath();
+      ctx.ellipse(x,y,size,size*0.6, Math.random()*Math.PI, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(centerX - innerRadius*0.6, centerY - innerRadius*0.6);
+    ctx.quadraticCurveTo(centerX, centerY - innerRadius*0.9, centerX + innerRadius*0.6, centerY - innerRadius*0.4);
+    ctx.lineTo(centerX + innerRadius*0.6, centerY - innerRadius*0.2);
+    ctx.quadraticCurveTo(centerX, centerY - innerRadius*0.5, centerX - innerRadius*0.4, centerY - innerRadius*0.1);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fill();
+
+    placed.forEach(p => drawTopping(p));
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerRadius + 1, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    updateNutrition();
+  }
+
+  function drawTopping(p){
+    const cx = canvas.width * p.x / 100;
+    const cy = canvas.height * p.y / 100;
+    const s = p.size;
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(p.angle || 0);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 1;
+    const shape = p.shape || 'circle';
+    if(shape === 'circle'){
+      ctx.beginPath(); ctx.arc(0,0,s/2,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    } else if(shape === 'shred'){
+      for(let i=0;i<6;i++){
+        ctx.beginPath();
+        ctx.ellipse((i-3)*1.8,0, s*0.25, s*0.55, Math.random()*0.5, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else if(shape === 'leaf'){
+      ctx.beginPath(); ctx.moveTo(0, -s/2); ctx.quadraticCurveTo(s/1.6, -s/4, 0, s/2); ctx.quadraticCurveTo(-s/1.6, -s/4, 0, -s/2); ctx.fill(); ctx.stroke();
+    } else if(shape === 'cap'){
+      ctx.beginPath(); ctx.arc(0, -s*0.12, s*0.5, Math.PI, 0); ctx.lineTo(s*0.5, s*0.25); ctx.quadraticCurveTo(0,s*0.6,-s*0.5,s*0.25); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if(shape === 'cube'){
+      roundRect(ctx, -s/2, -s/2, s, s, s*0.18, p.color, true);
+    } else if(shape === 'slice'){
+      ctx.beginPath(); ctx.moveTo(0, -s/2); ctx.arc(0,0,s/2, -Math.PI/6, Math.PI/6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if(shape === 'smear'){
+      ctx.beginPath(); ctx.ellipse(0,0, s*0.8, s*0.5, Math.random()*0.6, 0, Math.PI*2); ctx.fill();
+    } else if(shape === 'chip'){
+      ctx.beginPath(); ctx.moveTo(-s/3, s/3); ctx.lineTo(0,-s/3); ctx.lineTo(s/3,s/3); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(0,0,s/2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function roundRect(ctx,x,y,w,h,r, color, fill){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    if(fill){ ctx.fillStyle = color; ctx.fill(); }
+    ctx.stroke();
+  }
+
+  function mixColors(a,b,t){
+    const pa = hexToRgb(a), pb = hexToRgb(b);
+    const r = Math.round(pa.r + (pb.r - pa.r) * t);
+    const g = Math.round(pa.g + (pb.g - pa.g) * t);
+    const bl = Math.round(pa.b + (pb.b - pa.b) * t);
+    return `rgb(${r},${g},${bl})`;
+  }
+  function hexToRgb(hex){
+    hex = hex.replace('#','');
+    if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+    const num = parseInt(hex,16);
+    return { r: (num>>16)&255, g:(num>>8)&255, b: num&255 };
+  }
+
+  function sauceColorFor(s){
+    if(!s) return '#ffcf8b';
+    s = s.toLowerCase();
+    if(s.includes('pesto')) return '#6fbf73';
+    if(s.includes('bbq')) return '#6f2b0e';
+    if(s.includes('buffalo')) return '#ffb37a';
+    if(s.includes('nutella') || s.includes('chocolate')) return '#4b2e2b';
+    if(s.includes('white') || s.includes('alfredo')) return '#fff6e6';
+    if(s.includes('hummus')) return '#f2e8d6';
+    if(s.includes('avocado')) return '#bfe6b9';
+    if(s.includes('truffle') || s.includes('harissa')) return '#f0d1b0';
+    if(s.includes('none')) return 'transparent';
+    return '#b82a19';
+  }
+
+  // ---------------- interactions ----------------
+  let dragging = null;
+
+  function getMousePos(e){
+    const r = rect(canvas);
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    return {x,y};
+  }
+  function findPlacedAt(x,y){
+    for(let i=placed.length-1;i>=0;i--){
+      const p = placed[i];
+      const cx = canvas.width * p.x / 100;
+      const cy = canvas.height * p.y / 100;
+      const dist = Math.hypot(cx - x, cy - y);
+      if(dist < p.size) return p;
+    }
+    return null;
+  }
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    const pos = getMousePos(e);
+    const p = findPlacedAt(pos.x,pos.y);
+    if(p){
+      dragging = { id: p.id, startX: pos.x, startY: pos.y };
+      canvas.setPointerCapture(e.pointerId);
+    } else {
+      const val = addInput.value.trim();
+      addToppingByName(val || suggested[Math.floor(Math.random()*suggested.length)], e.clientX, e.clientY);
+    }
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const pos = getMousePos(e);
+    const p = placed.find(x=>x.id===dragging.id);
+    if(!p) return;
+    p.x = clamp(100 * pos.x / canvas.width, 5, 95);
+    p.y = clamp(100 * pos.y / canvas.height, 5, 95);
+    drawPizza();
+  });
+  canvas.addEventListener('pointerup', (e)=>{
+    if(dragging){ pushUndo(); dragging=null; canvas.releasePointerCapture(e.pointerId); }
+  });
+  canvas.addEventListener('click', (e)=>{
+    const pos = getMousePos(e);
+    const p = findPlacedAt(pos.x,pos.y);
+    if(p){
+      pushUndo();
+      placed = placed.filter(pp=>pp.id !== p.id);
+      const idx = toppings.findIndex(t=>t === p.name);
+      if(idx !== -1) toppings.splice(idx,1);
+      renderToppingsList(); updatePrice(); drawPizza(); updateNutrition();
+    }
+  });
+
+  canvas.addEventListener('dragover', (e)=>{ e.preventDefault(); canvas.style.outline = '4px dashed rgba(0,0,0,0.08)'; });
+  canvas.addEventListener('dragleave', (e)=>{ canvas.style.outline='none'; });
+  canvas.addEventListener('drop', (e)=>{
+    e.preventDefault(); canvas.style.outline='none';
+    const data = e.dataTransfer.getData('text/plain');
+    if(data) addToppingByName(data, e.clientX, e.clientY);
+  });
+
+  function addToppingByName(name, clientX=null, clientY=null){
+    if(!name) return;
+    pushUndo();
+    const parts = name.split(',').map(s=>s.trim()).filter(Boolean);
+    parts.forEach(part=>{
+      toppings.push(part);
+      let pos = {x:50,y:50};
+      if(clientX !== null && clientY !== null){
+        const r = rect(canvas);
+        pos = { x: ((clientX - r.left)/r.width)*100, y: ((clientY - r.top)/r.height)*100 };
+      } else {
+        pos = { x: 40 + Math.random()*20, y: 40 + Math.random()*20 };
+      }
+      const key = Object.keys(visuals).find(k => part.toLowerCase().includes(k)) || 'default';
+      const vis = visuals[key] || visuals['default'];
+      const density = parseInt(densityEl.value || DEFAULT_DENSITY,10) || DEFAULT_DENSITY;
+      const pieces = Math.max(1, Math.round(density/3));
+      for(let i=0;i<pieces;i++){
+        const jitterX = (Math.random()*8 - 4);
+        const jitterY = (Math.random()*8 - 4);
+        placed.push({
+          id: uid(),
+          name: part,
+          x: clamp(pos.x + jitterX, 5, 95),
+          y: clamp(pos.y + jitterY, 5, 95),
+          angle: Math.random()*Math.PI*2,
+          size: Math.max(8, vis.size + Math.random()*6 - 3),
+          color: vis.color,
+          shape: vis.shape || 'circle'
+        });
+      }
+    });
+    addInput.value = '';
+    renderToppingsList(); updatePrice(); drawPizza(); updateNutrition();
+  }
+
+  addBtn.addEventListener('click', ()=> addToppingByName(addInput.value.trim()));
+  addInput.addEventListener('keydown', e=> { if(e.key==='Enter'){ e.preventDefault(); addBtn.click(); }});
+
+  // Undo / Clear
+  undoBtn.addEventListener('click', ()=>{
+    const last = undoStack.pop();
+    if(last){ toppings = last.toppings; placed = last.placed; renderToppingsList(); updatePrice(); drawPizza(); } else alert('Nothing to undo');
+  });
+  clearBtn.addEventListener('click', ()=>{
+    if(!confirm('Clear build?')) return;
+    pushUndo(); toppings = []; placed = []; renderToppingsList(); updatePrice(); drawPizza(); updateNutrition();
+  });
+  clearPlacedBtn.addEventListener('click', ()=> { pushUndo(); placed=[]; drawPizza(); updateNutrition(); });
+
+  // Snapshot & Export
+  snapshotBtn.addEventListener('click', ()=>{
+    playChime(); confetti();
+    snapshotBtn.textContent = 'Captured ✓';
+    setTimeout(()=> snapshotBtn.textContent = 'Snapshot', 900);
+  });
+  exportBtn.addEventListener('click', ()=>{
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a'); a.href = url; a.download = 'pieology-slice.png'; a.click();
+  });
+  if(snapshotPressBtn) snapshotPressBtn.addEventListener('click', ()=> exportBtn.click());
+
+  // Bake animation
+  function doBake(){
+    const start = parseInt(donenessEl.value || 20,10);
+    let target = clamp(start + 30, 0, 100);
+    const step = (target - start) / 18;
+    let t = 0;
+    const id = setInterval(()=>{
+      const v = Math.round(start + step * t);
+      donenessEl.value = v;
+      drawPizza();
+      t++;
+      if(t>18){ clearInterval(id); playChime(); confetti(); }
+    }, 60);
+  }
+  bakeBtn.addEventListener('click', doBake);
+
+  document.addEventListener('keydown', e=>{
+    if(e.key.toLowerCase()==='r') randomizedBuild();
+    if(e.key.toLowerCase()==='b') doBake();
+  });
+
+  // Save / Manage Saved Builds
+  function saveBuild(){
+    const name = prompt('Name your build:');
+    if(!name) return;
+    const payload = {
+      name, date: new Date().toISOString(),
+      size: document.getElementById('size').value,
+      dough: document.getElementById('dough').value,
+      sauce: document.getElementById('sauce').value,
+      toppings, placed, doneness:donenessEl.value
+    };
+    const list = JSON.parse(localStorage.getItem('pieology_saved')||'[]');
+    list.push(payload);
+    localStorage.setItem('pieology_saved', JSON.stringify(list));
+    saveBtn.textContent = 'Saved ✓';
+    setTimeout(()=> saveBtn.textContent = 'Save', 1000);
+  }
+  function renderSavedList(){
+    const list = JSON.parse(localStorage.getItem('pieology_saved')||'[]');
+    savedList.innerHTML = '';
+    if(!list.length){ savedList.innerHTML = '<div class="muted">No saved builds</div>'; return; }
+    list.forEach((s, idx)=>{
+      const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.marginTop='8px';
+      row.innerHTML = `<div><strong>${s.name}</strong><div class="muted" style="font-size:12px">${new Date(s.date).toLocaleString()}</div></div>`;
+      const ctrls = document.createElement('div');
+      const loadBtn = document.createElement('button'); loadBtn.className='small'; loadBtn.textContent='Load'; loadBtn.addEventListener('click', ()=> loadSaved(idx));
+      const delBtn = document.createElement('button'); delBtn.className='small'; delBtn.textContent='Delete'; delBtn.addEventListener('click', ()=> { if(confirm('Delete?')) deleteSaved(idx); });
+      ctrls.appendChild(loadBtn); ctrls.appendChild(delBtn);
+      row.appendChild(ctrls);
+      savedList.appendChild(row);
+    });
+  }
+  function openSavedManager(){ renderSavedList(); savedModal.style.display='flex'; savedModal.setAttribute('aria-hidden','false'); }
+  function closeSavedManager(){ savedModal.style.display='none'; savedModal.setAttribute('aria-hidden','true'); }
+  closeSavedBtn.addEventListener('click', closeSavedManager);
+
+  function loadSaved(i){
+    const list = JSON.parse(localStorage.getItem('pieology_saved')||'[]');
+    if(!list[i]) return alert('Not found');
+    const s = list[i];
+    pushUndo();
+    document.getElementById('size').value = s.size || '12';
+    document.getElementById('dough').value = s.dough || 'Classic';
+    document.getElementById('sauce').value = s.sauce || 'Tomato';
+    toppings = s.toppings || []; placed = s.placed || [];
+    donenessEl.value = s.doneness || 20;
+    renderToppingsList(); updatePrice(); drawPizza();
+    closeSavedManager();
+  }
+  function deleteSaved(i){
+    const list = JSON.parse(localStorage.getItem('pieology_saved')||'[]');
+    list.splice(i,1);
+    localStorage.setItem('pieology_saved', JSON.stringify(list));
+    renderSavedList();
+  }
+
+  saveBtn.addEventListener('click', saveBuild);
+  manageSavedBtn.addEventListener('click', openSavedManager);
+
+  // Share
+  function shareBuild(){
+    const build = { size: document.getElementById('size').value, dough: document.getElementById('dough').value, sauce: document.getElementById('sauce').value, toppings, placed, doneness: donenessEl.value };
+    const json = JSON.stringify(build);
+    try{
+      const enc = btoa(unescape(encodeURIComponent(json)));
+      const url = `${location.origin}${location.pathname}#build=${enc}`;
+      navigator.clipboard.writeText(url).then(()=> { shareBtn.textContent = 'Copied ✓'; setTimeout(()=> shareBtn.textContent='Share',900); }).catch(()=> prompt('Copy link', url));
+    }catch(e){ alert('Share failed'); }
+  }
+  shareBtn.addEventListener('click', shareBuild);
+
+  function tryLoadFromHash(){
+    const h = location.hash || '';
+    if(h.startsWith('#build=')){
+      try{
+        const enc = h.split('=')[1];
+        const json = decodeURIComponent(escape(atob(enc)));
+        const b = JSON.parse(json);
+        document.getElementById('size').value = b.size || '12';
+        document.getElementById('dough').value = b.dough || 'Classic';
+        document.getElementById('sauce').value = b.sauce || 'Tomato';
+        toppings = b.toppings || [];
+        placed = b.placed || [];
+        donenessEl.value = b.doneness || 20;
+        renderToppingsList(); updatePrice(); drawPizza();
+      }catch(e){ console.warn('Invalid build in URL'); }
+    }
+  }
+
+  // Presets & mood buttons
+  const presets = [
+    {name:'Marshmallow Dream', size:'12', dough:'Cookie Dough', sauce:'Nutella', toppings:['marshmallows','nutella','chocolate','sprinkles']},
+    {name:'Savory Umami', size:'14', dough:'Sourdough', sauce:'Pesto', toppings:['mozzarella','mushroom','basil','sausage']},
+    {name:'Candy Rainbow', size:'12', dough:'Classic', sauce:'None', toppings:['gummy bears','sprinkles','marshmallows','chocolate']},
+    {name:'Truffle Luxe', size:'14', dough:'Cheese-Stuffed', sauce:'Truffle Oil', toppings:['mozzarella','prosciutto','arugula','sun-dried tomato']},
+    {name:'Veggie Fiesta', size:'12', dough:'Multigrain', sauce:'Pesto', toppings:['spinach','roasted peppers','olives','mozzarella']}
+  ];
+  function renderPresetUI(){
+    presetGrid.innerHTML = '';
+    presets.forEach((p,i)=>{
+      const c = document.createElement('div'); c.className='preset-card';
+      c.innerHTML = `<div style="font-weight:800">${p.name}</div><div class="muted" style="font-size:13px">${p.toppings.join(', ')}</div>`;
+      const applyBtn = document.createElement('button'); applyBtn.className='small'; applyBtn.textContent='Apply'; applyBtn.style.marginTop='8px';
+      applyBtn.addEventListener('click', ()=> applyPreset(p));
+      c.appendChild(applyBtn);
+      presetGrid.appendChild(c);
+    });
+  }
+  function applyPreset(p){
+    pushUndo();
+    document.getElementById('size').value = p.size || '12';
+    document.getElementById('dough').value = p.dough || 'Classic';
+    document.getElementById('sauce').value = p.sauce || 'Tomato';
+    toppings = []; placed = [];
+    p.toppings.forEach(t => addToppingByName(t));
+    updatePrice();
+  }
+
+  // mood buttons
+  const moodMap = { 'moodComfort': presets[1], 'moodParty': presets[2], 'moodRomance': presets[3], 'moodKids': presets[0] };
+  Object.keys(moodMap).forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', ()=> applyPreset(moodMap[id]));
+  });
+
+  // randomize
+  randomizeBtn.addEventListener('click', randomizedBuild);
+  function randomizedBuild(){
+    const k = 3 + Math.floor(Math.random()*5);
+    for(let i=0;i<k;i++) addToppingByName(suggested[Math.floor(Math.random()*suggested.length)]);
+  }
+
+  // Order simulation
+  orderBtn.addEventListener('click', ()=>{
+    const total = priceEl.textContent;
+    const name = prompt(`Place order — your name? (Total ${total})`, '');
+    if(!name) return alert('Order cancelled');
+    playChime(); confetti();
+    alert(`Thanks ${name}! Order simulated — to book events email hello@pieology.example`);
+  });
+
+  // Apply job (mailto)
+  const applyJobBtnEl = document.getElementById('applyJob');
+  if(applyJobBtnEl) applyJobBtnEl.addEventListener('click', ()=> { window.location.href = 'mailto:careers@pieology.example?subject=Job%20Application%20-%20Pieology'; });
+
+  // Newsletter
+  if(newsletterForm){
+    newsletterForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const email = newsletterEmail.value.trim();
+      if(!email || !email.includes('@')){ alert('Please enter a valid email'); return; }
+      const list = JSON.parse(localStorage.getItem('pieology_news')||'[]');
+      if(list.includes(email)){ alert('You are already subscribed'); return; }
+      list.push(email);
+      localStorage.setItem('pieology_news', JSON.stringify(list));
+      newsletterEmail.value = '';
+      alert('Thanks — you are subscribed!');
+    });
+  }
+
+  // Nutrition estimator
+  function updateNutrition(){
+    const counts = {};
+    placed.forEach(p=> counts[p.name] = (counts[p.name]||0) + 1);
+    nutritionList.innerHTML = '';
+    let total = 0;
+    Object.keys(counts).forEach(name=>{
+      const key = name.toLowerCase();
+      const calPer = caloriesMap[key] || caloriesMap['default'] || 15;
+      const qty = counts[name];
+      const subtotal = calPer * qty;
+      total += subtotal;
+      const row = document.createElement('div');
+      row.style.display='flex'; row.style.justifyContent='space-between'; row.style.marginTop='6px';
+      row.innerHTML = `<div>${name} ×${qty}</div><div class="muted">${subtotal} kcal</div>`;
+      nutritionList.appendChild(row);
+    });
+    caloriesTotal.textContent = `Total calories (estimate): ${Math.round(total)} kcal`;
+  }
+
+  // chime & confetti
+  function playChime(){
+    if(!soundToggle.checked) return;
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(880, ctx.currentTime);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      o.connect(g); g.connect(ctx.destination); o.start();
+      g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+      o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+      setTimeout(()=> { o.stop(); ctx.close(); }, 950);
+    }catch(e){}
+  }
+  function confetti(){
+    if(!confettiToggle.checked) return;
+    const colors = ['#ff6a3d','#ffd66b','#7de2a5','#6bd6ff','#ff6ea6'];
+    for(let i=0;i<20;i++){
+      const d = document.createElement('div');
+      d.style.position='fixed';
+      d.style.left = (window.innerWidth/2 + (Math.random()-0.5)*200) + 'px';
+      d.style.top = (150 + Math.random()*30) + 'px';
+      d.style.width = (6 + Math.random()*8) + 'px';
+      d.style.height = (6 + Math.random()*6) + 'px';
+      d.style.background = colors[Math.floor(Math.random()*colors.length)];
+      d.style.opacity = 0.9; d.style.borderRadius = Math.random()>0.5?'50%':'2px';
+      d.style.zIndex = 9999;
+      document.body.appendChild(d);
+      const vx = (Math.random()-0.5)*800, vy = -Math.random()*600 - 200;
+      d.animate([{transform:'translate3d(0,0,0)'},{transform:`translate3d(${vx}px,${vy}px,0)` , opacity:0}], {duration:1200 + Math.random()*800, easing:'cubic-bezier(.2,.8,.2,1)'});
+      setTimeout(()=> d.remove(), 2200);
+    }
+  }
+
+  // utilities: load hash, expose for debugging
+  function tryLoadFromHash(){
+    const h = location.hash || '';
+    if(h.startsWith('#build=')){
+      try{
+        const enc = h.split('=')[1];
+        const json = decodeURIComponent(escape(atob(enc)));
+        const b = JSON.parse(json);
+        document.getElementById('size').value = b.size || '12';
+        document.getElementById('dough').value = b.dough || 'Classic';
+        document.getElementById('sauce').value = b.sauce || 'Tomato';
+        toppings = b.toppings || [];
+        placed = b.placed || [];
+        donenessEl.value = b.doneness || 20;
+        renderToppingsList(); updatePrice(); drawPizza();
+      }catch(e){ console.warn('Invalid build in URL'); }
+    }
+  }
+
+  // expose small API
+  window.pieology = { addToppingByName, drawPizza, placed, toppings, exportPNG: ()=>canvas.toDataURL('image/png') };
+
+  // init
+  populateSuggestions();
+  renderPresetUI();
+  updatePrice();
+  renderToppingsList();
+  drawPizza();
+  tryLoadFromHash();
+
+})();
+</script>
+</body>
+</html>
